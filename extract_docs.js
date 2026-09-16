@@ -57,7 +57,11 @@ async function main() {
       CallToolResultSchema
     );
 
-    const fileNames = parseCsvTextContent(listResult);
+    // The MCP server refuses every other topic until the preamble has been
+    // read in this session, so hoist it to the front of the list.
+    const fileNames = parseCsvTextContent(listResult).sort((a, b) =>
+      a === "preamble" ? -1 : b === "preamble" ? 1 : 0
+    );
     const failures = [];
     let savedCount = 0;
 

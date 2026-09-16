@@ -10,5 +10,8 @@
   "description": "",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
