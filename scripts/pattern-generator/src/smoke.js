@@ -131,8 +131,63 @@ function run() {
     console.log(`Added group "${entry.name}" with ${defs.length} curve object(s).`);
   }
 
+  const preview = checkPreview(doc);
+  failures += preview.failed;
   failures += checkDialog(doc);
   console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} failure(s).`);
+}
+
+/**
+ * Check that a command executed as a preview shows without committing.
+ *
+ * This is what the dialog does on every change: execute with preview = true,
+ * and let the next preview replace it. Nothing should reach the layer stack or
+ * the undo history until OK is pressed.
+ */
+function checkPreview(doc) {
+  try {
+    const pattern = PATTERNS.find((p) => p.id === "truchet-arcs");
+    const { width, height } = resolveSize(0, 600, doc);
+    const graph = pattern.build(width, height, defaultsFor(pattern));
+    const canvas = graph.nodes.find((n) => n.type === "canvas");
+    if (canvas) canvas.inputs.backgroundColor = "transparent";
+    const parsed = svgToShapes(render(graph));
+    parsed.shapes = trimToCanvas(parsed.shapes, parsed.width, parsed.height);
+
+    const page = documentBox(doc) ?? { x: 0, y: 0, width, height };
+    const defs = buildDefinitions(parsed.shapes, PALETTE, {
+      merge: true,
+      offset: { x: page.x + (page.width - width) / 2, y: page.y + (page.height - height) / 2 },
+      name: pattern.label,
+    });
+    const groupBuilder = AddChildNodesCommandBuilder.create();
+    groupBuilder.addNode(ContainerNodeDefinition.create("Preview check"));
+    const curveBuilder = AddChildNodesCommandBuilder.create();
+    for (const def of defs) curveBuilder.addNode(def);
+    const command = CompoundCommandBuilder.create()
+      .addCommand(groupBuilder.createCommand(true))
+      .addCommand(curveBuilder.createCommand(false))
+      .createCommand();
+
+    const layersBefore = doc.layers.toArray().length;
+    const undoBefore = doc.canUndo;
+
+    const t = Date.now();
+    doc.executeCommand(command, true);
+    const cost = Date.now() - t;
+
+    // A preview must not land in the document or the undo history.
+    if (doc.canUndo !== undoBefore) throw new Error("preview reached the undo history");
+
+    console.log(`\nOK   preview: shown in ${cost}ms, undo history untouched.`);
+    // Never leave one up: the script is about to end, and an unfinished
+    // preview leaves Affinity redrawing it.
+    doc.clearPreviews();
+    return { failed: 0, layersBefore };
+  } catch (err) {
+    console.log(`\nFAIL preview: ${err.message}`);
+    return { failed: 1 };
+  }
 }
 
 /**
@@ -154,6 +209,12 @@ function checkDialog(doc) {
     if (dlg.paramControls.length !== PATTERNS.length) {
       throw new Error(`${dlg.paramControls.length} control groups for ${PATTERNS.length} patterns`);
     }
+    // The button is checked for existence and enablement only. Attaching a
+    // click handler to a dialog that is never shown leaves a live callback on
+    // an object nothing will ever dispose.
+    if (!dlg.refresh) throw new Error("no Update preview button");
+    dlg.refresh.isEnabled = true;
+    dlg.refresh.isEnabled = false;
 
     for (let i = 0; i < PATTERNS.length; i++) {
       showOnly(dlg, i);

@@ -8,12 +8,20 @@ of whichever design you pick.
 
 - **Library title:** `Pattern Generator`
 - **File to install:** [`pattern_generator.js`](pattern_generator.js)
-- **Current version:** 1.0.0
+- **Current version:** 1.1.0
 - **Tested against:** Affinity 3.2 (April 2026)
 
 ---
 
 ## Version history
+
+### 1.1.0 — 2026-09-16
+
+- **Live preview.** The pattern is drawn on the page as you change settings,
+  before anything is committed. Nothing reaches the layer stack or the undo
+  history until you press OK.
+- Previews pause themselves after a slow one, with an **Update preview** button
+  to ask for the next; see *Preview* below.
 
 ### 1.0.0 — 2026-09-16
 
@@ -134,9 +142,27 @@ hand in the Scripts panel before installing a new one under the same title — a
 | **Stroke / Fill / Background** | The engine paints through CSS variables rather than fixed colours, so these are resolved as the curves are built. Background is also the colour that occluding faces are filled with. |
 | **Draw background rectangle** | Off by default, so the pattern drops onto whatever is already there. |
 | **One object per shape** | Off by default. See *Merging* below. |
+| **Update preview** | Only enabled once previews have paused themselves. See *Preview* below. |
 
 The readout at the bottom tells you how many shapes and how many curve objects
 you are about to get, and the name of the group.
+
+### Preview
+
+The pattern is drawn on the page as you change settings. It is the real
+geometry, at the real size, in the real position — not a thumbnail — but it is
+only a preview: it stays out of the undo history and disappears if you cancel.
+Pressing OK replaces it with the committed group in one undo step.
+
+Generating a pattern runs on the same thread as the dialog, so a heavy one would
+stall every keystroke. Ordinary settings take 20–150ms and feel live. If one
+pass takes longer than 400ms, previews stop refreshing by themselves and the
+readout says so; **Update preview** asks for the next one. Tighten the spacing
+far enough on a large canvas and a single pass can take well over a second, so
+this keeps the dialog usable instead of letting it freeze.
+
+Pressing OK always uses the current settings, whether or not the preview is
+showing them.
 
 The result is one group named after the pattern and the ratio — `Flow Lines 2:3`
 — centred on the page, or placed on the artboard when the ratio came from it.
@@ -199,6 +225,17 @@ overlapping shapes look the same merged.
 cubes hide the ones behind them by being painted over them, and objects merged
 into one lose that order. The script detects shapes filled with the sheet colour
 and builds them separately; the dialog tells you when this happens.
+
+### Previewing
+
+`doc.executeCommand(command, true)` is Affinity's own mechanism: the command's
+result is shown but not committed. The same command executed with `false` on OK
+is what actually lands.
+
+A preview **must be cleared before the script ends**. `main()` calls
+`doc.clearPreviews()` on every way out — cancel, commit, or error. Leaving one
+up when the script exits leaves Affinity redrawing something nothing will ever
+finish, and it spins at 100% CPU until it gives up.
 
 ### Trimming
 

@@ -17,6 +17,15 @@ import { buildDialog, showOnly, readParams, readPalette, PALETTE_DEFAULTS } from
 // command takes long enough to feel broken, so we ask before going ahead.
 const SEPARATE_WARN_AT = 1500;
 
+// How long one preview may take before live updating gets in the way.
+//
+// The preview itself is nearly free — Affinity draws it lazily — but generating
+// the pattern is not, and it runs on the thread the dialog lives on. Ordinary
+// settings land around 20-150ms; tighten the spacing far enough and the same
+// pattern takes well over a second, at which point every keystroke would stall.
+// After one slow pass, previews wait to be asked for.
+const PREVIEW_BUDGET_MS = 400;
+
 const rgba = (c) => Colour.createRGBA8({ r: c.r, g: c.g, b: c.b, alpha: c.alpha ?? 255 });
 
 // runModal() hands back an enum object, not the very one on DialogResult, so
@@ -113,25 +122,46 @@ function main() {
   let lastPattern = dlg.pattern.selectedIndex;
   let run = null;
   let busy = false;
+  let paused = false;      // last pass was slow: wait to be asked
+  let lastCost = 0;
 
-  function update() {
+  /** Regenerate, describe the result, and draw it on the canvas as a preview. */
+  function update({ force = false } = {}) {
     if (busy) return;
-    busy = true;
-    try {
-      if (dlg.pattern.selectedIndex !== lastPattern) {
-        lastPattern = dlg.pattern.selectedIndex;
-        showOnly(dlg, lastPattern);
-      }
-      // The long edge is the artboard's own when the artboard sets the size.
-      dlg.size.isEnabled = dlg.aspect.selectedIndex !== ARTBOARD_ASPECT;
 
+    // Switching pattern has to take effect even when previews are paused, or
+    // the dialog would keep showing the previous pattern's settings.
+    if (dlg.pattern.selectedIndex !== lastPattern) {
+      lastPattern = dlg.pattern.selectedIndex;
+      showOnly(dlg, lastPattern);
+    }
+    dlg.size.isEnabled = dlg.aspect.selectedIndex !== ARTBOARD_ASPECT;
+
+    if (paused && !force) {
+      // The counts come from generating, so there is nothing cheap to show.
+      run = null;
+      dlg.readout.text =
+        `Preview paused — the last one took ${(lastCost / 1000).toFixed(1)}s.\n` +
+        `Press Update preview to see these settings, or OK to create them.`;
+      return;
+    }
+
+    busy = true;
+    const started = Date.now();
+    try {
       run = generate(dlg, doc);
       if (run.error) {
+        doc.clearPreviews();
         dlg.sizeNote.text = "";
         dlg.readout.text = run.error;
         return;
       }
+
       const objects = countObjects(run.parsed.shapes, run.palette, run.merge);
+      const command = createCommand(run);
+      if (command) doc.executeCommand(command, true);
+      else doc.clearPreviews();
+
       dlg.sizeNote.text = `Canvas ${Math.round(run.width)} x ${Math.round(run.height)} px`;
       const trimmed = run.rendered - run.parsed.shapes.length;
       dlg.readout.text =
@@ -139,23 +169,33 @@ function main() {
         (trimmed > 0 ? `  (${trimmed} off-canvas dropped)` : "") + "\n" +
         (run.merge && objects === run.parsed.shapes.length && objects > 1
           ? `Kept separate: this pattern depends on the order it is drawn in.\n` : "") +
-        `Group: "${run.name}"`;
+        `Group: "${run.name}"  —  previewed on the page`;
     } catch (err) {
       run = { error: String(err) };
+      doc.clearPreviews();
       dlg.readout.text = String(err);
     } finally {
       busy = false;
+      lastCost = Date.now() - started;
+      paused = lastCost > PREVIEW_BUDGET_MS;
+      dlg.refresh.isEnabled = paused;
     }
   }
 
-  dlg.onControlValueChangedHandler = update;
+  dlg.onControlValueChangedHandler = () => update();
+  dlg.refresh.onClickHandler = () => update({ force: true });
   update();
 
   while (isOk(dlg.runModal())) {
+    // Previews may have been paused, so there may be nothing generated yet.
     if (!run || run.error) {
-      app.alert(run?.error ?? "Choose settings that produce a pattern.");
-      continue;
+      update({ force: true });
+      if (!run || run.error) {
+        app.alert(run?.error ?? "Choose settings that produce a pattern.");
+        continue;
+      }
     }
+
     const objects = countObjects(run.parsed.shapes, run.palette, run.merge);
     if (!run.merge && objects > SEPARATE_WARN_AT) {
       app.alert(
@@ -169,9 +209,14 @@ function main() {
       app.alert("These settings produce nothing to draw.");
       continue;
     }
+    // The preview is replaced by the real thing, as one undo step.
     doc.executeCommand(command, false);
-    return;
+    break;
   }
+
+  // Always, on every way out. A preview left behind when the script ends keeps
+  // Affinity redrawing it with nothing left to finish it off.
+  doc.clearPreviews();
 }
 
 main();

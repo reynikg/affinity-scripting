@@ -4395,6 +4395,8 @@ function buildDialog(doc, colours) {
   dlg.drawBackground = styleGroup.addSwitch("Draw background rectangle", false);
   const outputGroup = column.addGroup("Output");
   dlg.separate = outputGroup.addSwitch("One object per shape", false);
+  dlg.refresh = outputGroup.addButton("Update preview").setIsFullWidth();
+  dlg.refresh.isEnabled = false;
   dlg.readout = outputGroup.addStaticText(null, "").setIsFullWidth();
   dlg.initialWidth = 460;
   showOnly(dlg, 0);
@@ -4441,6 +4443,7 @@ function toRGBA(colour, fallback) {
 
 // scripts/pattern-generator/src/main.js
 var SEPARATE_WARN_AT = 1500;
+var PREVIEW_BUDGET_MS = 400;
 var rgba = (c) => Colour.createRGBA8({ r: c.r, g: c.g, b: c.b, alpha: c.alpha ?? 255 });
 var isOk = (result) => (result?.value ?? result) === DialogResult.Ok.value;
 var ARTBOARD_ASPECT = ASPECTS.findIndex((a) => a.id === "artboard");
@@ -4512,39 +4515,60 @@ function main() {
   let lastPattern = dlg.pattern.selectedIndex;
   let run = null;
   let busy = false;
-  function update() {
+  let paused = false;
+  let lastCost = 0;
+  function update({ force = false } = {}) {
     if (busy) return;
+    if (dlg.pattern.selectedIndex !== lastPattern) {
+      lastPattern = dlg.pattern.selectedIndex;
+      showOnly(dlg, lastPattern);
+    }
+    dlg.size.isEnabled = dlg.aspect.selectedIndex !== ARTBOARD_ASPECT;
+    if (paused && !force) {
+      run = null;
+      dlg.readout.text = `Preview paused \u2014 the last one took ${(lastCost / 1e3).toFixed(1)}s.
+Press Update preview to see these settings, or OK to create them.`;
+      return;
+    }
     busy = true;
+    const started = Date.now();
     try {
-      if (dlg.pattern.selectedIndex !== lastPattern) {
-        lastPattern = dlg.pattern.selectedIndex;
-        showOnly(dlg, lastPattern);
-      }
-      dlg.size.isEnabled = dlg.aspect.selectedIndex !== ARTBOARD_ASPECT;
       run = generate(dlg, doc);
       if (run.error) {
+        doc.clearPreviews();
         dlg.sizeNote.text = "";
         dlg.readout.text = run.error;
         return;
       }
       const objects = countObjects(run.parsed.shapes, run.palette, run.merge);
+      const command = createCommand(run);
+      if (command) doc.executeCommand(command, true);
+      else doc.clearPreviews();
       dlg.sizeNote.text = `Canvas ${Math.round(run.width)} x ${Math.round(run.height)} px`;
       const trimmed = run.rendered - run.parsed.shapes.length;
       dlg.readout.text = `${run.parsed.shapes.length} shapes -> ${objects} curve object${objects === 1 ? "" : "s"}` + (trimmed > 0 ? `  (${trimmed} off-canvas dropped)` : "") + "\n" + (run.merge && objects === run.parsed.shapes.length && objects > 1 ? `Kept separate: this pattern depends on the order it is drawn in.
-` : "") + `Group: "${run.name}"`;
+` : "") + `Group: "${run.name}"  \u2014  previewed on the page`;
     } catch (err) {
       run = { error: String(err) };
+      doc.clearPreviews();
       dlg.readout.text = String(err);
     } finally {
       busy = false;
+      lastCost = Date.now() - started;
+      paused = lastCost > PREVIEW_BUDGET_MS;
+      dlg.refresh.isEnabled = paused;
     }
   }
-  dlg.onControlValueChangedHandler = update;
+  dlg.onControlValueChangedHandler = () => update();
+  dlg.refresh.onClickHandler = () => update({ force: true });
   update();
   while (isOk(dlg.runModal())) {
     if (!run || run.error) {
-      app.alert(run?.error ?? "Choose settings that produce a pattern.");
-      continue;
+      update({ force: true });
+      if (!run || run.error) {
+        app.alert(run?.error ?? "Choose settings that produce a pattern.");
+        continue;
+      }
     }
     const objects = countObjects(run.parsed.shapes, run.palette, run.merge);
     if (!run.merge && objects > SEPARATE_WARN_AT) {
@@ -4561,7 +4585,8 @@ Turn off "One object per shape", or reduce the pattern's detail, then try again.
       continue;
     }
     doc.executeCommand(command, false);
-    return;
+    break;
   }
+  doc.clearPreviews();
 }
 main();

@@ -63,6 +63,9 @@ export function buildDialog(doc, colours) {
 
   const outputGroup = column.addGroup("Output");
   dlg.separate = outputGroup.addSwitch("One object per shape", false);
+  // Only needed once previews have paused themselves; enabled by main.js then.
+  dlg.refresh = outputGroup.addButton("Update preview").setIsFullWidth();
+  dlg.refresh.isEnabled = false;
   dlg.readout = outputGroup.addStaticText(null, "").setIsFullWidth();
 
   dlg.initialWidth = 460;
