@@ -6,7 +6,9 @@ built from. The logo-presentation overlay, generated from the path data rather
 than traced by hand.
 
 Modelled on [GridIt](https://www.akrivi.studio/gridit) for Illustrator — this
-covers its anchor/handle overlay and its construction grid.
+covers its anchor/handle overlay and its construction grid. An independent
+implementation inspired by what GridIt does: no GridIt code was used, and the
+two are unconnected.
 
 - **Library title:** `Logo Grid`
 - **File to install:** [`logo_grid.js`](logo_grid.js)

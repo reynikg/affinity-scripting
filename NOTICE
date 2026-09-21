@@ -1,0 +1,51 @@
+# NOTICE
+
+## Upstream
+
+This repository is a fork of
+
+    https://github.com/rabidgremlin/affinity-scripting
+
+Copyright (c) rabidgremlin. That repository is published without a licence,
+so all rights in it are reserved by its author.
+
+The following files originate there. They are **not** covered by this
+repository's LICENSE, and no rights in them are granted by it. They are
+redistributed here under the fork right that GitHub's Terms of Service
+(section D.5, "License Grant to Other Users") grant to every GitHub user for
+any public repository.
+
+    extract_docs.js
+    script_mgr.js
+    search_sdk.js
+    run_script.js
+    scripts/hello-world/
+    scripts/markdown-import/
+
+If you want to reuse any of those beyond viewing and forking them on GitHub,
+ask their author, not this repository.
+
+## Work original to this fork
+
+    scripts/logo-grid/
+    scripts/pattern-generator/
+    scripts/window-creator/
+
+Copyright (c) 2026 Robert Reynik, licensed under the MIT License. See LICENSE.
+
+## Affinity SDK documentation
+
+`extract_docs.js` writes Affinity SDK documentation into `docs/` by pulling it
+from the Affinity MCP server running on your own machine. That content belongs
+to Canva/Serif and is **not** redistributed here — `docs/` is git-ignored and
+has never been committed. Keep it that way.
+
+## Trademarks
+
+Affinity is a trademark of Canva and/or Serif (Europe) Ltd. This project is an
+independent, unofficial set of scripts. It is not affiliated with, endorsed by,
+sponsored by, or supported by Canva or Serif.
+
+GridIt is a product of Akrivi Studio. `scripts/logo-grid/` is an independent
+implementation inspired by what GridIt does. No GridIt code was used, and the
+two are unconnected.

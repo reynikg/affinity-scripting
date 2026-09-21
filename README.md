@@ -59,6 +59,9 @@ script_mgr.js
 search_sdk.js
 run_script.js
 docs/                         extracted SDK docs (git-ignored)
+
+LICENSE                       MIT, covering this fork's own scripts only
+NOTICE                        what came from upstream, and under what terms
 ```
 
 ### The rules
@@ -253,6 +256,24 @@ codex mcp add affinity -- uvx mcp-proxy --transport sse http://localhost:6767/ss
 ```
 
 You will need python and `uv` installed for this to work
+
+---
+
+## Licence
+
+Split, because this is a fork of an unlicensed repository.
+
+- **The scripts under `scripts/logo-grid/`, `scripts/pattern-generator/` and
+  `scripts/window-creator/`** are mine, and are MIT licensed. Take them, change
+  them, ship them — see [LICENSE](LICENSE).
+- **The four tools at the repo root, plus `scripts/hello-world/` and
+  `scripts/markdown-import/`,** came from
+  [rabidgremlin/affinity-scripting](https://github.com/rabidgremlin/affinity-scripting),
+  which carries no licence. They remain their author's, all rights reserved,
+  and the MIT licence here does not extend to them. [NOTICE](NOTICE) has the detail.
+
+Affinity is a trademark of Canva and/or Serif (Europe) Ltd. This is an
+independent, unofficial project — not affiliated with or endorsed by either.
 
 ## Notes
 - The tooling at the repo root and the two inherited scripts came from upstream,

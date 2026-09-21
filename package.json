@@ -1,13 +1,14 @@
 {
-  "name": "extract_script_docs",
+  "name": "affinity-scripting",
   "version": "1.0.0",
+  "private": true,
+  "description": "Scripts for Affinity by Canva, plus the tooling used to build them.",
+  "author": "Robert Reynik",
+  "license": "SEE LICENSE IN LICENSE",
   "main": "extract_docs.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
