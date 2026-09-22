@@ -7,10 +7,28 @@ curves you can keep editing.
 
 - **Library title:** `Window Chrome`
 - **File to install:** [`window_chrome.js`](window_chrome.js)
-- **Current version:** 1.0.0
+- **Current version:** 1.1.0
 - **Tested against:** Affinity 3.3 (Mid September 2026)
 
 ## Version history
+
+### 1.1.0 — 2026-09-22
+Rectangles only, and the rectangle's history no longer leaks into the window.
+- **Only rectangles are accepted.** 1.0.0 took the bounding box of whatever was
+  selected, so an ellipse or a logo was silently turned into a window. A live
+  rectangle shape qualifies, rounded corners and all, and so does a curve that
+  is geometrically a rectangle — four straight sides and four right angles —
+  which is what an expanded or converted rectangle becomes. Everything else is
+  left untouched and counted in the status line.
+- **Only the rectangle's dimensions are used.** A rectangle that had been
+  duplicated and stretched carried its transform into the window, so the title
+  bar, buttons and corners were stretched with it. Nothing carries a transform
+  now: the rectangle contributes its measured width, height and centre, and the
+  chrome is drawn at the size it should be. A fresh 560×700 draw and a 560×280
+  rectangle stretched 2.5× on Y now produce identical windows.
+- **Rotation is no longer carried over**, which follows from the above. A
+  rotated rectangle gives an upright window of the same width and height, at the
+  same centre; rotate the finished group if you want it at an angle.
 
 ### 1.0.0 — 2026-09-17
 First release.
@@ -25,7 +43,7 @@ First release.
 - Live preview while the dialog is open; the original rectangle is replaced
   unless you say otherwise.
 - Rotated and scaled rectangles produce rotated and scaled windows, with the
-  chrome still the size you asked for.
+  chrome still the size you asked for. *(Withdrawn in 1.1.0.)*
 
 ## Dependencies
 
@@ -65,13 +83,17 @@ node script_mgr.js add --title "Window Chrome" --description "Turns each selecte
 
 ## Sharing it
 
-Send `window_creator.js` on its own. The recipient needs Affinity 3.2 or later and
+Send `window_chrome.js` on its own. The recipient needs Affinity 3.2 or later and
 nothing else — no document setup, no fonts, no styles, no permissions.
 
-The one trap is the selection. The script needs at least one object with a real
-bounding box; it silently skips anything else in the selection and says how many
-it skipped in the status line. A selection made entirely of groups or empty
-layers gets *"Select at least one rectangle to turn into a window"*.
+The one trap is the selection: it really does mean rectangles. A live rectangle
+from the Rectangle tool works, rounded corners and all, and so does a rectangle
+that has been converted or expanded to curves. An ellipse, a rounded curve whose
+corners are no longer square, a group, a picture frame or a piece of artwork
+does not, and is left exactly as it was — the status line says how many were
+skipped. A selection with no rectangle in it gets *"Select at least one
+rectangle. Only rectangles are used — other shapes, curves, groups and images
+are left alone."*
 
 ## Using it
 
@@ -80,8 +102,12 @@ Everything previews live on the canvas while the dialog is open; **OK** commits
 it, **Cancel** leaves the document untouched. Each rectangle becomes one layer
 named after the style, holding the window's parts as separate editable objects.
 
-The rectangle only supplies the frame — its own fill and stroke are not used, so
-it does not matter what it looks like.
+The rectangle supplies its width, height and position and nothing else. Its
+fill, stroke, corner radius and rotation are all ignored, and so is how it got
+to its current size — a rectangle duplicated and stretched gives exactly the
+same window as one drawn at that size from scratch. A rotated rectangle gives an
+upright window; rotate the finished group afterwards if you want it at an
+angle.
 
 ### Interface
 | Control | What it does |
@@ -138,18 +164,39 @@ window's height and the buttons still fit across it. Changing style re-suggests
 a scale — a 46 pt GNOME header bar needs a different one from a 22 pt Aqua title
 bar — but a scale you have typed yourself is left alone.
 
-### Coordinate space
-Every part is built in the source rectangle's *own* coordinate space, and each
-resulting node definition carries that rectangle's `baseToSpreadTransform`. A
-rotated rectangle therefore yields a rotated window, and a scaled one a scaled
-window, without any geometry being transformed by hand.
+### Measuring the rectangle, not inheriting it
+1.0.0 built every part in the rectangle's own coordinate space and gave it the
+rectangle's `baseToSpreadTransform`, which carried rotation and scale through
+for free. It also carried *non-uniform* scale through, and that is not free: a
+rectangle duplicated and stretched on one axis produced a window whose title
+bar, buttons and corner radii were stretched with it. Compensating for a uniform
+scale, as 1.0.0 did, cannot fix that — there is no single factor to divide by.
 
-That would leave the chrome scaled too, so the unit the measurements are
-multiplied by is divided by the length of the transform's x axis. A rectangle
-drawn at 400 pt and scaled to 160% gets a title bar that measures 17.5 pt in its
-own space and 28 pt on the spread — the size actually asked for. The drop shadow
-runs the other way, because a layer effect applies in spread space, so it is
-multiplied by that same factor instead.
+So nothing carries a transform now. The rectangle is measured instead:
+
+- **A rectangle shape** is measured from its base box pushed through its
+  transform one axis at a time. That gives the length of each edge rather than
+  the box around them, so a rotated rectangle reports its real width and height.
+- **A curve rectangle** is transformed into spread space and measured from its
+  four corners directly.
+
+Either way the result is a width, a height and a centre. Whichever edge lies
+closer to horizontal becomes the width, so a rectangle turned on its side is a
+tall window rather than a wide one drawn sideways. Every part is then built in
+spread coordinates at full size, and the drop shadow — which applies in spread
+space anyway — needs no compensation either.
+
+### Deciding what is a rectangle
+A live rectangle shape is identified by `shapeType`, so its corner radii do not
+matter: a rounded rectangle from the Rectangle tool is still a rectangle.
+
+Anything else has to be judged geometrically, because an expanded or converted
+rectangle is just a curve. The test is four straight sides and four right
+angles: control points lying on their chord within a fraction of the chord's own
+length, and consecutive edges perpendicular to within about a degree. Four right
+angles makes opposite sides equal by construction, so there is nothing else to
+check. A closed path may or may not store the final edge back to its start, so
+both spellings are folded to the same four corners before the test runs.
 
 ### Corner radii
 Corners use `ShapeRectangle` with `useSingleRadius = false` and
@@ -196,3 +243,6 @@ against re-entering.
   interpretation, kept for consistency rather than accuracy.
 - **GNOME gets one button.** A plain libadwaita window shows close and nothing
   else; the other two only appear when an app asks for them.
+- **No rotated windows.** Dropped in 2.0.0 along with the rest of the source
+  rectangle's transform. Rotating the finished group does the same job and keeps
+  the chrome honest.

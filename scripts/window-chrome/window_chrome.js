@@ -1,7 +1,7 @@
 /**
  * name: Window Chrome
  * description: Turns each selected rectangle into an empty OS window, in the chosen interface style.
- * version: 1.0.0
+ * version: 1.1.0
  * author: Robert Reynik | Claude Opus 5
  */
 
@@ -18,7 +18,7 @@ const { OuterShadowLayerEffect } = require('/layereffects.js');
 const { LineCap, LineJoin, LineStyle, LineStyleDescriptor, StrokeAlignment } = require('/linestyle.js');
 const { ContainerNodeDefinition, PolyCurveNodeDefinition, ShapeNodeDefinition } = require('/nodes.js');
 const { Selection } = require('/selections.js');
-const { ShapeCornerType, ShapeRectangle } = require('/shapes.js');
+const { ShapeCornerType, ShapeRectangle, ShapeType } = require('/shapes.js');
 const { UnitType } = require('/units.js');
 
 // ---------------------------------------------------------------- colour
@@ -99,22 +99,22 @@ function roundedRect(rc, radii) {
 //
 // Every drawing helper hangs off a canvas so that a part can be placed in
 // window-local coordinates — (0,0) is the window's top left corner — while the
-// node definition it produces is positioned in the source rectangle's own
-// coordinate space and carries that rectangle's transform. A rotated or scaled
-// rectangle therefore yields a rotated or scaled window.
+// node definition it produces lands in spread coordinates.
+//
+// Nothing carries a transform. The source rectangle contributes its measured
+// width, height and centre and nothing else, so a rectangle that has been
+// stretched, squashed, rotated or scaled since it was drawn still produces a
+// window whose chrome is the size and shape it should be.
 
-function createCanvas(box, transform) {
+function createCanvas(box) {
     return {
         parts: [],
         box,
-        transform,
         rect(x, y, w, h) {
             return new Rectangle(this.box.x + x, this.box.y + y, w, h);
         },
         push(def, name) {
             def.userDescription = name;
-            if (this.transform)
-                def.transform = this.transform;
             this.parts.push(def);
             return def;
         }
@@ -578,24 +578,15 @@ const PRESETS = [
 
 // ---------------------------------------------------------------- assembly
 
-// The x axis of the node's transform tells us how much bigger the rectangle
-// looks on the spread than it measures in its own coordinates. Chrome is drawn
-// in the node's coordinates, so dividing by that factor keeps the title bar the
-// size the user asked for no matter how the rectangle has been scaled.
-function transformScale(xf) {
-    const s = Math.hypot(xf.data[0], xf.data[3]);
-    return s > 1e-6 ? s : 1;
-}
-
 function windowParts(target, preset, opts) {
     const c = opts.dark ? preset.dark : preset.light;
     const m = preset.metrics;
-    const canvas = createCanvas(target.box, target.transform);
+    const canvas = createCanvas(target.box);
     const ctx = {
         canvas,
         w: target.box.width,
         h: target.box.height,
-        u: opts.scale / target.scale,
+        u: opts.scale,
         c, m, opts
     };
     preset.draw(ctx);
@@ -640,7 +631,7 @@ function createCommand(targets, preset, opts) {
 
         if (opts.shadow > 0)
             compound.addCommand(DocumentCommand.createSetOuterShadowLayerEffect(
-                null, shadowEffect(preset, opts, opts.scale * target.scale), 0));
+                null, shadowEffect(preset, opts, opts.scale), 0));
     }
 
     if (!drew)
@@ -664,9 +655,9 @@ function isOk(result) {
 function suggestedScale(targets, preset) {
     let scale = 1;
     for (const target of targets) {
-        const w = target.box.width * target.scale;
-        const h = target.box.height * target.scale;
-        scale = Math.min(scale, h * 0.28 / preset.metrics.titleBar, w / 320);
+        scale = Math.min(scale,
+            target.box.height * 0.28 / preset.metrics.titleBar,
+            target.box.width / 320);
     }
     return Math.max(Math.round(Math.min(scale, 1) * 1000) / 10, 1);
 }
@@ -722,22 +713,147 @@ function readOptions(dlg) {
     };
 }
 
+// ---------------------------------------------------------------- selection
+//
+// Only rectangles. Taking the bounding box of whatever happened to be selected
+// silently turned an ellipse or a logo into a window, which is a destructive
+// surprise rather than a convenience — so anything that is not a rectangle is
+// counted as skipped and left alone.
+//
+// A rectangle reaches the script in one of two forms: a live rectangle shape
+// from the Rectangle tool, rounded corners and all, or a curve that was once
+// one and has since been converted or expanded. Both are accepted; everything
+// else, including rounded curve rectangles whose corners are no longer square,
+// is not.
+
+const RIGHT_ANGLE_COS = 0.02;   // about 1.1 degrees out of square
+const STRAIGHT_TOL = 0.004;     // control point offset, as a fraction of the chord
+
+function samePoint(a, b, eps) {
+    return Math.abs(a.x - b.x) <= eps && Math.abs(a.y - b.y) <= eps;
+}
+
+// True when both control points lie on the chord, i.e. the segment is a line
+// however it happens to be stored.
+function isStraight(bez, eps) {
+    const dx = bez.end.x - bez.start.x, dy = bez.end.y - bez.start.y;
+    const len = Math.hypot(dx, dy);
+    if (len < eps)
+        return false;
+    const off = (p) => Math.abs((p.x - bez.start.x) * dy - (p.y - bez.start.y) * dx) / len;
+    return off(bez.c1) <= len * STRAIGHT_TOL + eps && off(bez.c2) <= len * STRAIGHT_TOL + eps;
+}
+
+// The four corners of a closed, four-sided, straight-edged curve — or null.
+// A closed path may or may not store the final edge back to its start, so both
+// spellings have to produce the same four points.
+function rectangleCorners(poly, eps) {
+    const curves = [];
+    for (const curve of poly.curves)
+        curves.push(curve);
+    if (curves.length != 1 || !curves[0].isClosed)
+        return null;
+
+    const bez = curves[0].beziers.toArray();
+    if (bez.length == 0 || !bez.every(b => isStraight(b, eps)))
+        return null;
+    const wraps = samePoint(bez[bez.length - 1].end, bez[0].start, eps);
+    const corners = bez.map(b => b.start);
+    if (!wraps)
+        corners.push(bez[bez.length - 1].end);
+    if (corners.length != 4)
+        return null;
+
+    // Four right angles is enough; opposite sides are then equal by
+    // construction, so there is nothing else to test.
+    for (let i = 0; i < 4; ++i) {
+        const a = corners[i], b = corners[(i + 1) % 4], c = corners[(i + 2) % 4];
+        const ux = b.x - a.x, uy = b.y - a.y, vx = c.x - b.x, vy = c.y - b.y;
+        const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+        if (lu < eps || lv < eps)
+            return null;
+        if (Math.abs((ux * vx + uy * vy) / (lu * lv)) > RIGHT_ANGLE_COS)
+            return null;
+    }
+    return corners;
+}
+
+// A rectangle's two edge vectors, resolved into a width and a height: whichever
+// edge lies closer to horizontal is the width. A rectangle turned on its side
+// is a tall window, not a wide one drawn sideways.
+function orient(a, b) {
+    const la = Math.hypot(a.x, a.y), lb = Math.hypot(b.x, b.y);
+    return Math.abs(a.x) >= Math.abs(a.y)
+        ? { width: la, height: lb }
+        : { width: lb, height: la };
+}
+
+function targetFrom(node, centre, size) {
+    if (!(size.width > 0) || !(size.height > 0))
+        return null;
+    return {
+        node,
+        box: new Rectangle(centre.x - size.width / 2, centre.y - size.height / 2,
+            size.width, size.height)
+    };
+}
+
+// A live rectangle shape. Its size comes from its own base box pushed through
+// its transform one axis at a time, which measures the edges themselves rather
+// than the bounding box they sit in — so a rotated rectangle reports its real
+// width and height, not the box around it.
+function shapeTarget(node) {
+    const box = node.baseBox;
+    if (!box)
+        return null;
+    const xf = node.baseToSpreadTransform;
+    const x = { x: xf.data[0] * box.width, y: xf.data[3] * box.width };
+    const y = { x: xf.data[1] * box.height, y: xf.data[4] * box.height };
+    const centre = xf.applyToPoint({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    return targetFrom(node, centre, orient(x, y));
+}
+
+// A curve that is geometrically a rectangle, measured in spread space.
+function curveTarget(node) {
+    const curves = node.curvesInterface;
+    if (!curves)
+        return null;
+    const poly = curves.polyCurve.clone();
+    poly.transform(node.baseToSpreadTransform);
+    const bounds = poly.boundingBox;
+    if (!bounds)
+        return null;
+    const corners = rectangleCorners(poly, Math.max(bounds.width, bounds.height) * 1e-5);
+    if (!corners)
+        return null;
+    const centre = {
+        x: (corners[0].x + corners[2].x) / 2,
+        y: (corners[0].y + corners[2].y) / 2
+    };
+    const a = { x: corners[1].x - corners[0].x, y: corners[1].y - corners[0].y };
+    const b = { x: corners[2].x - corners[1].x, y: corners[2].y - corners[1].y };
+    return targetFrom(node, centre, orient(a, b));
+}
+
+function rectangleTarget(node) {
+    if (!node.isPhysicalNode)
+        return null;
+    if (node.isShapeNode)
+        return node.shapeType?.value == ShapeType.Rectangle.value ? shapeTarget(node) : null;
+    return curveTarget(node);
+}
+
 // ---------------------------------------------------------------- entry point
 
-// Any selected object with a real bounding box can stand in for the window
-// frame; a plain rectangle is the obvious thing to draw, but a rounded one or a
-// placed picture frame works the same way.
 function readTargets(selection) {
     const targets = [];
     let skipped = 0;
     for (const node of selection.nodes) {
-        const box = node.isPhysicalNode ? node.baseBox : null;
-        if (!box || !(box.width > 0) || !(box.height > 0)) {
+        const target = rectangleTarget(node);
+        if (target)
+            targets.push(target);
+        else
             ++skipped;
-            continue;
-        }
-        const transform = node.baseToSpreadTransform;
-        targets.push({ node, box, transform, scale: transformScale(transform) });
     }
     targets.skipped = skipped;
     return targets;
@@ -751,7 +867,8 @@ function main() {
     }
     const targets = readTargets(doc.selection);
     if (targets.length == 0) {
-        alert('Select at least one rectangle to turn into a window');
+        alert('Select at least one rectangle. Only rectangles are used — '
+            + 'other shapes, curves, groups and images are left alone.');
         return;
     }
 
@@ -783,7 +900,7 @@ function main() {
             const cmd = createCommand(targets, opts.preset, opts);
             dlg.status.text = `${targets.length} window${targets.length == 1 ? '' : 's'}`
                 + ` · ${opts.preset.metrics.titleBar} pt title bar at ${Math.round(opts.scale * 100)}%`
-                + (targets.skipped ? ` · ${targets.skipped} selected object(s) skipped` : '');
+                + (targets.skipped ? ` · ${targets.skipped} non-rectangle(s) skipped` : '');
             if (cmd)
                 doc.executeCommand(cmd, preview);
             else
