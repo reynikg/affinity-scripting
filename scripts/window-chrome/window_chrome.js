@@ -1,5 +1,5 @@
 /**
- * name: Window Creator
+ * name: Window Chrome
  * description: Turns each selected rectangle into an empty OS window, in the chosen interface style.
  * version: 1.0.0
  * author: Robert Reynik | Claude Opus 5
