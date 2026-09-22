@@ -8,7 +8,7 @@ This is a private fork of
 The LookSee findings and the four tools at the repo root come from there; the
 scripts under `scripts/` are the work this fork is for.
 
-Everything here targets the **April 2026 (3.2)** release of Affinity.
+Everything here targets the **April 2026 (3.2) or later** release of Affinity.
 
 ---
 

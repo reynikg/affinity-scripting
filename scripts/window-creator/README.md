@@ -8,7 +8,7 @@ curves you can keep editing.
 - **Library title:** `Window Creator`
 - **File to install:** [`window_creator.js`](window_creator.js)
 - **Current version:** 1.0.0
-- **Tested against:** Affinity 3.2 (April 2026)
+- **Tested against:** Affinity 3.3 (Mid September 2026)
 
 ## Version history
 
@@ -30,7 +30,7 @@ First release.
 ## Dependencies
 
 ### To run the script
-Nothing to install. Affinity 3.2, a document open, and at least one rectangle
+Nothing to install. Affinity 3.2 or later, a document open, and at least one rectangle
 selected. The SDK modules it requires:
 
 | Module | Used for |
@@ -65,7 +65,7 @@ node script_mgr.js add --title "Window Creator" --description "Turns each select
 
 ## Sharing it
 
-Send `window_creator.js` on its own. The recipient needs Affinity 3.2 and
+Send `window_creator.js` on its own. The recipient needs Affinity 3.2 or later and
 nothing else — no document setup, no fonts, no styles, no permissions.
 
 The one trap is the selection. The script needs at least one object with a real
