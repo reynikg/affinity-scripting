@@ -1,12 +1,12 @@
-# Window Creator
+# Window Chrome
 
 Turns each selected rectangle into an empty desktop window — title bar, window
 buttons, border and drop shadow — in the interface style you pick. Eight styles
 across macOS, Windows and Linux, light or dark, drawn as ordinary shapes and
 curves you can keep editing.
 
-- **Library title:** `Window Creator`
-- **File to install:** [`window_creator.js`](window_creator.js)
+- **Library title:** `Window Chrome`
+- **File to install:** [`window_chrome.js`](window_chrome.js)
 - **Current version:** 1.0.0
 - **Tested against:** Affinity 3.3 (Mid September 2026)
 
@@ -55,12 +55,12 @@ No filesystem, network or AI permission is needed.
 ## Installing
 
 ### Option A — paste it
-Copy [`window_creator.js`](window_creator.js), open **Window > General >
-Scripts**, add a script titled `Window Creator` and paste.
+Copy [`window_chrome.js`](window_chrome.js), open **Window > General >
+Scripts**, add a script titled `Window Chrome` and paste.
 
 ### Option B — install over MCP
 ```bash
-node script_mgr.js add --title "Window Creator" --description "Turns each selected rectangle into an empty OS window, in the chosen interface style." --file scripts/window-creator/window_creator.js
+node script_mgr.js add --title "Window Chrome" --description "Turns each selected rectangle into an empty OS window, in the chosen interface style." --file scripts/window-chrome/window_chrome.js
 ```
 
 ## Sharing it

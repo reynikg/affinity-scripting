@@ -18,7 +18,7 @@ Everything here targets the **April 2026 (3.2) or later** release of Affinity.
 |---|---|---|
 | [**Logo Grid**](scripts/logo-grid/) | Anchor points, Bezier handles and a derived construction grid over the selected artwork, as editable curves | [`logo_grid.js`](scripts/logo-grid/logo_grid.js) |
 | [**Pattern Generator**](scripts/pattern-generator/) | Eleven generative patterns as native editable curves, at a chosen aspect ratio | [`pattern_generator.js`](scripts/pattern-generator/pattern_generator.js) |
-| [**Window Creator**](scripts/window-creator/) | Turns the selected rectangles into empty macOS, Windows or Linux windows, as editable shapes | [`window_creator.js`](scripts/window-creator/window_creator.js) |
+| [**Window Chrome**](scripts/window-chrome/) | Turns the selected rectangles into empty macOS, Windows or Linux windows, as editable shapes | [`window_chrome.js`](scripts/window-chrome/window_chrome.js) |
 | [**Markdown Import to Text Frame**](scripts/markdown-import/) | Imports a Markdown file into the selected text frame, mapped onto text styles | [`markdown_import_to_text_frame.js`](scripts/markdown-import/markdown_import_to_text_frame.js) |
 | [**Hello World**](scripts/hello-world/) | The smallest possible script; useful for checking a setup | [`helloworldexample.js`](scripts/hello-world/helloworldexample.js) |
 

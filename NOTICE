@@ -29,7 +29,7 @@ ask their author, not this repository.
 
     scripts/logo-grid/
     scripts/pattern-generator/
-    scripts/window-creator/
+    scripts/window-chrome/
 
 Copyright (c) 2026 Robert Reynik, licensed under the MIT License. See LICENSE.
 
